@@ -34,6 +34,9 @@ class listener implements EventSubscriberInterface
 	/* @var \phpbb\config\config */
 	protected $config;
 
+	/* @var \phpbb\auth\auth */
+	protected $auth;
+
 	/** @var string phpbb_root_path */
 	protected $phpbb_root_path;
 
@@ -49,11 +52,12 @@ class listener implements EventSubscriberInterface
 	 * @param \phpbb\path_helper			$path_helper			Controller helper object
 	 * @param \phpbb\db\driver\factory			$db			Database object
 	 * @param \phpbb\config\config			$config			Config object
+	 * @param \phpbb\auth\auth			$auth			Auth object
 	 * @param string						$phpbb_root_path		phpbb_root_path
 	 * @param string						$php_ext				php_ext
 	 * @access public
 	 */
-	public function __construct(\tas2580\seourls\event\base $base, \phpbb\template\template $template, \phpbb\request\request $request, \phpbb\path_helper $path_helper, \phpbb\db\driver\factory $db, \phpbb\config\config $config, $phpbb_root_path, $php_ext)
+	public function __construct(\tas2580\seourls\event\base $base, \phpbb\template\template $template, \phpbb\request\request $request, \phpbb\path_helper $path_helper, \phpbb\db\driver\factory $db, \phpbb\config\config $config, \phpbb\auth\auth $auth, $phpbb_root_path, $php_ext)
 	{
 		$this->base = $base;
 		$this->template = $template;
@@ -61,6 +65,7 @@ class listener implements EventSubscriberInterface
 		$this->path_helper = $path_helper;
 		$this->db = $db;
 		$this->config = $config;
+		$this->auth = $auth;
 		$this->phpbb_root_path = $phpbb_root_path;
 		$this->php_ext = $php_ext;
 
@@ -77,7 +82,7 @@ class listener implements EventSubscriberInterface
 	public static function getSubscribedEvents()
 	{
 		return array(
-			'core.common'										=> 'intercept_page_load',
+			'core.user_setup_after'										=> 'intercept_page_load',
 			'core.append_sid'										=> 'append_sid',
 			'core.display_forums_modify_sql'						=> 'display_forums_modify_sql',
 			'core.display_forums_modify_template_vars'				=> 'display_forums_modify_template_vars',
@@ -126,22 +131,77 @@ class listener implements EventSubscriberInterface
 				$expected_url = $this->base->generate_forum_link($row['forum_id'] , $row['forum_name'], $start);
 			}
 			else{ //viewtopic
+				$post_id = $this->request->variable('p', 0);
 				$topic_id = $this->request->variable('t', 0);
 				$start = $this->request->variable('start', 0);
 			
-				$sql = "SELECT topic_id, topic_title
-					FROM " . TOPICS_TABLE . "
-					WHERE topic_id = $topic_id";
-				$res = $this->db->sql_query($sql);
-				$row = $this->db->sql_fetchrow($res);
-				$this->db->sql_freeresult($res);
+				if ($post_id){
+					$sql = "SELECT t.topic_id, t.topic_title, t.forum_id
+						FROM " . POSTS_TABLE . " p
+						LEFT JOIN " . TOPICS_TABLE . " t ON p.topic_id=t.topic_id
+						WHERE p.post_id = $post_id";
+					$res = $this->db->sql_query($sql);
+					$row = $this->db->sql_fetchrow($res);
+					$this->db->sql_freeresult($res);
 
-				$expected_url = $this->base->generate_topic_link($row['topic_id'] , $row['topic_title'], $start);
+					if ($row){
+						$sql = "SELECT post_id
+							FROM " . POSTS_TABLE . "
+							WHERE topic_id = " . $row['topic_id'] . " AND (post_visibility=1";
+						
+						if ($this->auth->acl_get('m_approve', $row['forum_id'])){
+							$sql .= ' OR post_visibility=0';
+						}
+						if ($this->auth->acl_get('m_delete', $row['forum_id'])){
+							$sql .= ' OR post_visibility=2';
+						}
+
+						$sql.=") ORDER BY post_time";
+						$res = $this->db->sql_query($sql);
+						$rowset = $this->db->sql_fetchrowset($res);
+						$this->db->sql_freeresult($res);
+
+						$found = FALSE;
+						$post_position = 0;
+						foreach ($rowset as $childrow){
+							if ($childrow['post_id']==$post_id){
+								$found = TRUE;
+								break;
+							}
+							$post_position++;
+						}
+
+						if (!$found){ //Go to first page
+							$post_position = 0;
+						}
+
+						$per_page = ($this->config['posts_per_page'] <= 0) ? 1 : $this->config['posts_per_page'];
+						$start = 0;
+						if (($post_position + 1) > $per_page){
+							while ($start < $post_position + 1){
+								$start += $per_page;
+							}
+						}
+						
+						$expected_url = $this->base->generate_topic_link($row['topic_id'] , $row['topic_title'], $start);
+					}
+				}
+				else{
+					$sql = "SELECT topic_id, topic_title
+						FROM " . TOPICS_TABLE . "
+						WHERE topic_id = $topic_id";
+					$res = $this->db->sql_query($sql);
+					$row = $this->db->sql_fetchrow($res);
+					$this->db->sql_freeresult($res);
+
+					$expected_url = $this->base->generate_topic_link($row['topic_id'] , $row['topic_title'], $start);
+				}
 			}
 
-			if (pathinfo($expected_url, PATHINFO_FILENAME)!=$url_last_chunk){
+			if (isset($expected_url) && pathinfo($expected_url, PATHINFO_FILENAME)!=$url_last_chunk){
 				header("HTTP/1.1 301 Moved Permanently");
 				header("Location: " . $this->config['script_path'] . "/$expected_url");
+				exit();
 			}
 		}
 	}

@@ -95,7 +95,7 @@ class base
 		{
 			for ($j = 0; $j < $replies + 1; $j += $per_page)
 			{
-				$last_post_link = $url . '-s' . $j . '.html';
+				$last_post_link = $url . '-' . $j . '.html';
 			}
 		}
 		else
