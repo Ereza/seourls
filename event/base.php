@@ -51,13 +51,13 @@ class base
 	 * @return	string	The SEO URL
 	 * @access private
 	 */
-	public function generate_topic_link($forum_id, $forum_name, $topic_id, $topic_title, $start = 0, $full = false)
+	public function generate_topic_link($topic_id, $topic_title, $start = 0, $full = false)
 	{
 		if ($full)
 		{
-			return generate_board_url() . '/' . $this->title_to_url($forum_name) . '-f' . $forum_id . '/' . $this->title_to_url($topic_title) . '-t' . $topic_id . ($start ? '-s' . $start : '') . '.html';
+			return generate_board_url() . '/' . $this->title_to_url($topic_title) . '-t' . $topic_id . ($start ? '-' . $start : '') . '.html';
 		}
-		return $this->phpbb_root_path . $this->title_to_url($forum_name) . '-f' . $forum_id . '/' . $this->title_to_url($topic_title) . '-t' . $topic_id . ($start ? '-s' . $start : '') . '.html';
+		return $this->phpbb_root_path . $this->title_to_url($topic_title) . '-t' . $topic_id . ($start ? '-' . $start : '') . '.html';
 	}
 
 	/**
@@ -74,9 +74,9 @@ class base
 	{
 		if ($full)
 		{
-			return generate_board_url() . '/' . $this->title_to_url($forum_name) . '-f' . $forum_id . '/' . ($start ? 'index-s' . $start . '.html' : '');
+			return generate_board_url() . '/' . $this->title_to_url($forum_name) . '-f' . $forum_id . ($start ? '-' . $start : '') . '.html';
 		}
-		return $this->phpbb_root_path . $this->title_to_url($forum_name) . '-f' . $forum_id . '/' . ($start ? 'index-s' . $start . '.html' : '');
+		return $this->phpbb_root_path . $this->title_to_url($forum_name) . '-f' . $forum_id . ($start ? '-' . $start : '') . '.html';
 	}
 
 	/**
