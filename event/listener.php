@@ -118,83 +118,101 @@ class listener implements EventSubscriberInterface
 
 		if ($script_name=='viewforum' || $script_name=='viewtopic'){
 			if ($script_name=='viewforum'){
-				$forum_id = $this->request->variable('f', 0);
-				$start = $this->request->variable('start', 0);
-			
-				$sql = "SELECT forum_id, forum_name
-					FROM " . FORUMS_TABLE . "
-					WHERE forum_id = $forum_id";
-				$res = $this->db->sql_query($sql);
-				$row = $this->db->sql_fetchrow($res);
-				$this->db->sql_freeresult($res);
+				//We must not redirect because the extension does not handle these cases:
+				// - sd/sk/st is set (sort order and filtering in viewforum)
+				// - mark is set (marking forums, topics or subforums as read)
+				// - watch is set (watching forums)
+				// - unwatch is set (unwatching forums)
+				if (!$this->request->is_set('sd') && !$this->request->is_set('sk') && !$this->request->is_set('st')
+						&& !$this->request->is_set('mark') && !$this->request->is_set('watch') && !$this->request->is_set('unwatch')){
+					$forum_id = $this->request->variable('f', 0);
+					$start = $this->request->variable('start', 0);
+					$sql = "SELECT forum_id, forum_name
+						FROM " . FORUMS_TABLE . "
+						WHERE forum_id = $forum_id";
+					$res = $this->db->sql_query($sql);
+					$row = $this->db->sql_fetchrow($res);
+					$this->db->sql_freeresult($res);
 
-				$expected_url = $this->base->generate_forum_link($row['forum_id'] , $row['forum_name'], $start);
+					$expected_url = $this->base->generate_forum_link($row['forum_id'] , $row['forum_name'], $start);
+				}
 			}
 			else{ //viewtopic
-				$post_id = $this->request->variable('p', 0);
-				$topic_id = $this->request->variable('t', 0);
-				$start = $this->request->variable('start', 0);
+				//We must not redirect because the extension does not handle these cases:
+				// - sd/sk/st is set (sort order and filtering in viewtopic)
+				// - thanks is set (we are thanking)
+				// - bookmark is set (bookmarking topics)
+				// - watch is set (watching topics)
+				// - unwatch is set (unwatching topics)
+				// - view is set (printing topics OR going to first unread post)
+				if (!$this->request->is_set('sd') && !$this->request->is_set('sk') && !$this->request->is_set('st')
+						&& !$this->request->is_set('thanks') && !$this->request->is_set('bookmark') 
+						&& !$this->request->is_set('watch') && !$this->request->is_set('unwatch') && $this->request->variable('view', '', TRUE)!='print'){
+					$post_id = $this->request->variable('p', 0);
+					$topic_id = $this->request->variable('t', 0);
+					$start = $this->request->variable('start', 0);
 			
-				if ($post_id){
-					$sql = "SELECT t.topic_id, t.topic_title, t.forum_id
-						FROM " . POSTS_TABLE . " p
-						LEFT JOIN " . TOPICS_TABLE . " t ON p.topic_id=t.topic_id
-						WHERE p.post_id = $post_id";
-					$res = $this->db->sql_query($sql);
-					$row = $this->db->sql_fetchrow($res);
-					$this->db->sql_freeresult($res);
-
-					if ($row){
-						$sql = "SELECT post_id
-							FROM " . POSTS_TABLE . "
-							WHERE topic_id = " . $row['topic_id'] . " AND (post_visibility=1";
-						
-						if ($this->auth->acl_get('m_approve', $row['forum_id'])){
-							$sql .= ' OR post_visibility=0';
-						}
-						if ($this->auth->acl_get('m_delete', $row['forum_id'])){
-							$sql .= ' OR post_visibility=2';
-						}
-
-						$sql.=") ORDER BY post_time";
+					if ($post_id){
+						$sql = "SELECT t.topic_id, t.topic_title, t.forum_id
+							FROM " . POSTS_TABLE . " p
+							LEFT JOIN " . TOPICS_TABLE . " t ON p.topic_id=t.topic_id
+							WHERE p.post_id = $post_id";
 						$res = $this->db->sql_query($sql);
-						$rowset = $this->db->sql_fetchrowset($res);
+						$row = $this->db->sql_fetchrow($res);
 						$this->db->sql_freeresult($res);
 
-						$found = FALSE;
-						$post_position = 0;
-						foreach ($rowset as $childrow){
-							if ($childrow['post_id']==$post_id){
-								$found = TRUE;
-								break;
-							}
-							$post_position++;
-						}
-
-						if (!$found){ //Go to first page
-							$post_position = 0;
-						}
-
-						$per_page = ($this->config['posts_per_page'] <= 0) ? 1 : $this->config['posts_per_page'];
-						$start = 0;
-						if (($post_position + 1) > $per_page){
-							while ($start < $post_position + 1){
-								$start += $per_page;
-							}
-						}
+						if ($row){
+							$sql = "SELECT post_id
+								FROM " . POSTS_TABLE . "
+								WHERE topic_id = " . $row['topic_id'] . " AND (post_visibility=1";
 						
+							if ($this->auth->acl_get('m_approve', $row['forum_id'])){
+								$sql .= ' OR post_visibility=0';
+							}
+							if ($this->auth->acl_get('m_delete', $row['forum_id'])){
+								$sql .= ' OR post_visibility=2';
+							}
+
+							$sql.=") ORDER BY post_time";
+							$res = $this->db->sql_query($sql);
+							$rowset = $this->db->sql_fetchrowset($res);
+							$this->db->sql_freeresult($res);
+
+							$found = FALSE;
+							$post_position = 0;
+							foreach ($rowset as $childrow){
+								if ($childrow['post_id']==$post_id){
+									$found = TRUE;
+									break;
+								}
+								$post_position++;
+							}
+
+							if (!$found){ //Go to first page
+								$post_position = 0;
+							}
+
+							$per_page = ($this->config['posts_per_page'] <= 0) ? 1 : $this->config['posts_per_page'];
+							$start = 0;
+							if (($post_position + 1) > $per_page){
+								while ($start < $post_position + 1){
+									$start += $per_page;
+								}
+							}
+						
+							$expected_url = $this->base->generate_topic_link($row['topic_id'] , $row['topic_title'], $start);
+						}
+					}
+					else{
+						$sql = "SELECT topic_id, topic_title
+							FROM " . TOPICS_TABLE . "
+							WHERE topic_id = $topic_id";
+						$res = $this->db->sql_query($sql);
+						$row = $this->db->sql_fetchrow($res);
+						$this->db->sql_freeresult($res);
+
 						$expected_url = $this->base->generate_topic_link($row['topic_id'] , $row['topic_title'], $start);
 					}
-				}
-				else{
-					$sql = "SELECT topic_id, topic_title
-						FROM " . TOPICS_TABLE . "
-						WHERE topic_id = $topic_id";
-					$res = $this->db->sql_query($sql);
-					$row = $this->db->sql_fetchrow($res);
-					$this->db->sql_freeresult($res);
-
-					$expected_url = $this->base->generate_topic_link($row['topic_id'] , $row['topic_title'], $start);
 				}
 			}
 
