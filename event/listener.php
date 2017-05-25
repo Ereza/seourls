@@ -134,7 +134,9 @@ class listener implements EventSubscriberInterface
 					$row = $this->db->sql_fetchrow($res);
 					$this->db->sql_freeresult($res);
 
-					$expected_url = $this->base->generate_forum_link($row['forum_id'] , $row['forum_name'], $start);
+					if ($row){
+						$expected_url = $this->base->generate_forum_link($row['forum_id'] , $row['forum_name'], $start);
+					}
 				}
 			}
 			else{ //viewtopic
@@ -211,7 +213,9 @@ class listener implements EventSubscriberInterface
 						$row = $this->db->sql_fetchrow($res);
 						$this->db->sql_freeresult($res);
 
-						$expected_url = $this->base->generate_topic_link($row['topic_id'] , $row['topic_title'], $start);
+						if ($row){
+							$expected_url = $this->base->generate_topic_link($row['topic_id'] , $row['topic_title'], $start);
+						}
 					}
 				}
 			}
