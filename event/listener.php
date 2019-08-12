@@ -180,27 +180,16 @@ class listener implements EventSubscriberInterface
 							$rowset = $this->db->sql_fetchrowset($res);
 							$this->db->sql_freeresult($res);
 
-							$found = FALSE;
 							$post_position = 0;
 							foreach ($rowset as $childrow){
 								if ($childrow['post_id']==$post_id){
-									$found = TRUE;
 									break;
 								}
 								$post_position++;
 							}
 
-							if (!$found){ //Go to first page
-								$post_position = 0;
-							}
-
 							$per_page = ($this->config['posts_per_page'] <= 0) ? 1 : $this->config['posts_per_page'];
-							$start = 0;
-							if (($post_position + 1) > $per_page){
-								while ($start < $post_position + 1){
-									$start += $per_page;
-								}
-							}
+							$start = floor($post_position / $per_page) * $per_page;
 						
 							$expected_url = $this->base->generate_topic_link($row['topic_id'] , $row['topic_title'], $start);
 						}
